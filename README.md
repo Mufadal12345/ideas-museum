@@ -1,2 +1,0 @@
-# ideas-museum
-Web
