@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -15,16 +16,17 @@ export const Suggestions: React.FC = () => {
     // Only show user's own suggestions unless admin
     const mySuggestions = currentUser?.role === 'admin' 
         ? suggestions 
-        : suggestions.filter(s => s.author === currentUser?.name);
+        : suggestions.filter(s => s.authorId === currentUser?.id || s.author === currentUser?.name);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!title || !content) return;
+        if (!title || !content || !currentUser) return;
         
         await addDoc(collection(db, 'suggestions'), {
             title, content, type,
             suggestionType: type,
-            author: currentUser?.name,
+            author: currentUser.name,
+            authorId: currentUser.id,
             status: 'pending',
             createdAt: new Date().toISOString()
         });
@@ -91,22 +93,33 @@ export const Suggestions: React.FC = () => {
                             <p>لم ترسل أي مقترحات بعد</p>
                         </div>
                     ) : (
-                        mySuggestions.map(s => (
+                        mySuggestions.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map(s => (
                             <div key={s.id} className="glass-card p-4 rounded-xl border-r-4 border-l-0 border-pink-500">
                                 <div className="flex justify-between items-start mb-2">
                                     <span className="text-xs bg-white/10 px-2 py-0.5 rounded text-gray-300">{s.suggestionType}</span>
                                     <span className={`text-[10px] px-2 py-0.5 rounded-full ${
                                         s.status === 'pending' ? 'bg-yellow-500/20 text-yellow-300' : 
-                                        s.status === 'replied' ? 'bg-green-500/20 text-green-300' : 'bg-gray-500/20'
+                                        s.status === 'replied' ? 'bg-green-500/20 text-green-300' : 
+                                        s.status === 'rejected' ? 'bg-red-500/20 text-red-300' : 'bg-gray-500/20'
                                     }`}>
-                                        {s.status === 'pending' ? 'قيد المراجعة' : s.status}
+                                        {s.status === 'pending' ? 'قيد المراجعة' : s.status === 'replied' ? 'تم الرد' : s.status === 'rejected' ? 'مرفوض' : s.status}
                                     </span>
                                 </div>
                                 <h4 className="font-bold text-white mb-1">{s.title}</h4>
                                 <p className="text-sm text-gray-400 line-clamp-2">{s.content}</p>
                                 <div className="mt-2 text-[10px] text-gray-600">
-                                    {new Date(s.createdAt).toLocaleDateString()}
+                                    {new Date(s.createdAt).toLocaleDateString('ar-EG')}
                                 </div>
+
+                                {s.replyContent && (
+                                    <div className="mt-4 bg-green-500/10 border border-green-500/20 rounded-lg p-3 animate-fade-in">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <Icons.User className="w-3 h-3 text-green-400" />
+                                            <span className="text-xs font-bold text-green-400">رد الإدارة ({s.repliedBy || 'مشرف'})</span>
+                                        </div>
+                                        <p className="text-sm text-gray-200">{s.replyContent}</p>
+                                    </div>
+                                )}
                             </div>
                         ))
                     )}

@@ -1,14 +1,14 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useAuth } from '../AuthContext';
-import { useData } from '../DataContext';
-import { useToast } from '../ToastContext';
-import { CATEGORY_ICONS } from '../../types';
-import { Modal } from '../../components/Modal';
+import { useAuth } from '../contexts/AuthContext';
+import { useData } from '../contexts/DataContext';
+import { useToast } from '../contexts/ToastContext';
+import { CATEGORY_ICONS } from '../types';
+import { Modal } from '../components/Modal';
 import { addDoc, collection, doc, updateDoc, setDoc, getDoc } from 'firebase/firestore';
-import { db } from '../../firebase';
+import { db } from '../firebase';
 import { useNavigate } from 'react-router-dom';
-import { STATIC_CONTENT } from '../../data/staticData';
-import { Icons } from '../../components/Icons';
+import { STATIC_CONTENT } from '../data/staticData';
+import { Icons } from '../components/Icons';
 
 export const Ideas: React.FC = () => {
     const { currentUser } = useAuth();
