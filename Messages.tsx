@@ -1,24 +1,60 @@
+
 import React, { useState } from 'react';
 import { useData } from '../../contexts/DataContext';
 import { updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { Icons } from '../../components/Icons';
 import { useToast } from '../../contexts/ToastContext';
+import { Modal } from '../../components/Modal';
+import { useAuth } from '../../contexts/AuthContext';
 
 export const Messages: React.FC = () => {
     const { suggestions } = useData();
+    const { currentUser } = useAuth();
     const { showToast } = useToast();
     const [filter, setFilter] = useState('all');
+    
+    // Reply State
+    const [isReplyModalOpen, setIsReplyModalOpen] = useState(false);
+    const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+    const [replyText, setReplyText] = useState('');
 
     const filteredSuggestions = suggestions.filter(s => filter === 'all' || s.status === filter)
         .sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-    const updateStatus = async (id: string, status: 'approved' | 'rejected' | 'replied') => {
+    const updateStatus = async (id: string, status: 'approved' | 'rejected') => {
         try {
             await updateDoc(doc(db, 'suggestions', id), { status });
             showToast('تم تحديث حالة الرسالة', 'success');
         } catch (e) {
             showToast('حدث خطأ', 'error');
+        }
+    };
+
+    const openReplyModal = (id: string) => {
+        setSelectedMessageId(id);
+        setReplyText('');
+        setIsReplyModalOpen(true);
+    };
+
+    const handleSendReply = async () => {
+        if (!selectedMessageId || !replyText.trim()) return;
+        
+        try {
+            await updateDoc(doc(db, 'suggestions', selectedMessageId), {
+                status: 'replied',
+                replyContent: replyText,
+                repliedBy: currentUser?.name || 'الإدارة',
+                repliedAt: new Date().toISOString()
+            });
+            
+            showToast('تم إرسال الرد بنجاح', 'success');
+            setIsReplyModalOpen(false);
+            setReplyText('');
+            setSelectedMessageId(null);
+        } catch (e) {
+            console.error(e);
+            showToast('فشل إرسال الرد', 'error');
         }
     };
 
@@ -61,7 +97,7 @@ export const Messages: React.FC = () => {
                                 </div>
                             </div>
                             <span className={`text-xs px-2 py-1 rounded-full ${msg.status === 'pending' ? 'bg-yellow-500/20 text-yellow-300' : msg.status === 'replied' ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>
-                                {msg.status}
+                                {msg.status === 'pending' ? 'انتظار' : msg.status === 'replied' ? 'تم الرد' : 'مرفوض'}
                             </span>
                         </div>
                         
@@ -69,17 +105,26 @@ export const Messages: React.FC = () => {
                             {msg.content}
                         </p>
 
+                        {msg.replyContent && (
+                            <div className="mb-4 bg-green-500/5 border border-green-500/20 p-3 rounded-xl">
+                                <p className="text-xs text-green-400 font-bold mb-1">الرد المرسل ({msg.repliedBy}):</p>
+                                <p className="text-sm text-gray-300">{msg.replyContent}</p>
+                            </div>
+                        )}
+
                         <div className="flex gap-2 justify-end pt-2 border-t border-white/5">
-                            {msg.status === 'pending' && (
-                                <>
-                                    <button onClick={() => updateStatus(msg.id, 'replied')} className="btn-secondary px-3 py-1.5 rounded-lg text-xs hover:bg-green-500/20 hover:text-green-300 flex items-center gap-1">
-                                        <Icons.Check className="w-3 h-3" /> تم المعالجة
-                                    </button>
-                                    <button onClick={() => updateStatus(msg.id, 'rejected')} className="btn-secondary px-3 py-1.5 rounded-lg text-xs hover:bg-red-500/20 hover:text-red-300 flex items-center gap-1">
-                                        <Icons.X className="w-3 h-3" /> رفض
-                                    </button>
-                                </>
+                            {msg.status !== 'replied' && (
+                                <button onClick={() => openReplyModal(msg.id)} className="btn-primary px-3 py-1.5 rounded-lg text-xs flex items-center gap-1">
+                                    <Icons.Message className="w-3 h-3 rotate-90" /> رد على الرسالة
+                                </button>
                             )}
+                            
+                            {msg.status === 'pending' && (
+                                <button onClick={() => updateStatus(msg.id, 'rejected')} className="btn-secondary px-3 py-1.5 rounded-lg text-xs hover:bg-red-500/20 hover:text-red-300 flex items-center gap-1">
+                                    <Icons.X className="w-3 h-3" /> رفض
+                                </button>
+                            )}
+                            
                             <button onClick={() => handleDelete(msg.id)} className="text-gray-500 hover:text-red-500 p-1.5">
                                 <Icons.Trash className="w-4 h-4" />
                             </button>
@@ -94,6 +139,21 @@ export const Messages: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            <Modal isOpen={isReplyModalOpen} onClose={() => setIsReplyModalOpen(false)} title="إرسال رد">
+                <div className="space-y-4">
+                    <p className="text-sm text-gray-400">سيظهر هذا الرد للمستخدم في قائمة مقترحاته.</p>
+                    <textarea 
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        placeholder="اكتب ردك هنا..."
+                        className="input-style w-full h-32 p-4 rounded-xl resize-none"
+                    />
+                    <button onClick={handleSendReply} className="btn-primary w-full py-3 rounded-xl font-bold">
+                        إرسال الرد 📤
+                    </button>
+                </div>
+            </Modal>
         </div>
     );
 };
